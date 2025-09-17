@@ -108,16 +108,11 @@ def run_selected_module():
     #     choice = str(df.iloc[0, 0]).strip()  # A1 셀 값
     #     recipe_name = df.iloc[6, 1]  # B7 셀 값
 
-        # --- [프리체크] Key-Value에서 '시험항목' 오른쪽 값 (choice) 만 빠르게 읽어 X 여부 판단 ---
-        # ※ 간소화: 'peek_choice'로 엑셀을 한 번 더 읽어서 미리 확인하던 로직은 제거.
-        #    이제는 extract_from_excel() 한 번만 호출해서 반환된 data['choice']로만 판단합니다.
 
-        # drop-down 시트는 스킵 (ssgwak : Excel 시트 변경으로 인해 drop-down 목록 시트 추가, 해당 시트는 검사하지 않음)
+        # drop-down 시트는 스킵 (ssgwak : Excel 시트 변경으로 인해 LOV 시트 추가, 해당 시트는 검사하지 않음)
         if sheet_name.lower() == config.IGNORE_SHEET_NAME.lower():
             print(f"[스킵] '{sheet_name}' 시트는 참조용이므로 실행하지 않음")
             continue
-
-        # --- [프리체크] --------------------------------------------------------------------------------
         try:
             # extract_from_excel 함수 이용하여 엑셀 데이터 추출
             data = extract_from_excel(excel_path, sheet_name)
@@ -141,12 +136,12 @@ def run_selected_module():
             _w = datetime.datetime.now()
             print(f"[시작] {sheet_name} at {_w.strftime('%H:%M:%S')}")
 
-            # recipe_copy.py 의 run_recipe_copy 로 단일화
+            # recipe_rebuild.py 의 run_recipe_rebuild 실행해서 Recipe 복제하도록 수정
             recipe_rebuild.run_recipe_rebuild(sheet_name, excel_path, ID, PW)
 
             _e = time.perf_counter()
             _w2 = datetime.datetime.now()
-            print(f"[완료] {sheet_name} → recipe_copy 처리 완료 (elapsed: {_e - _s:.2f}s)")
+            print(f"[완료] {sheet_name} → recipe_rebuild 처리 완료 (elapsed: {_e - _s:.2f}s)")
         except Exception as e:
             print(f"[오류] {sheet_name} 시트 실행 중 오류 발생: {e}")
 
@@ -159,7 +154,7 @@ if __name__ == "__main__":
     print(f"[RUN] Started at {_start_wall.strftime('%Y-%m-%d %H:%M:%S')}")
 
     try:
-        # 1) Pre-check 먼저 실행
+        # 1) generator.py 에 있는 precheck_all_sheets 함수 먼저 실행, 모든 시트에서 필수값 이상 없는지 검사
         precheck_all_sheets(excel_path)
         print("[PRECHECK] All sheets pre-check completed.")
 
