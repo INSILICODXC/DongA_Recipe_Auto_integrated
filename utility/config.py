@@ -6,6 +6,6 @@ URL_COMPOSE = "https://cncdev.daphgmp.dongasocio.com:9963/compose/"
 # Y: 동아 개발환경, N: 인실리코 개발환경
 IS_DA_DEV = "N"
 
-# Template 시트에서 drop-down 목록이 있는 시트 이름은 예외처리 필요
+# Template 시트에서 이화학, 기기분석의 목록 정의 시트 (LOV) 예외처리
 IGNORE_SHEET_NAME = "LOV"
 

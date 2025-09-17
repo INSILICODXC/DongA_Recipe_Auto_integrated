@@ -329,8 +329,11 @@ def login(driver, username, password):
     driver.get(config.URL_HUB)
     time.sleep(5)
 
+# config.py 에 있는 IS_DA_DEV 값에 따라 동아 개발환경과 인실리코 개발환경을 구분하여 로그인
+# 동아 개발환경: IS_DA_DEV = "Y"
+# 인실리코 개발환경: IS_DA_DEV = "N"
     if config.IS_DA_DEV == "Y":
-        # 동아 개발환경
+        
         wait_and_send_keys(driver, 20, By.XPATH, "//input[@placeholder='이메일 또는 사용자 이름']", username)
         wait_and_send_keys(driver, 20, By.XPATH, "//input[@placeholder='암호']", password)
         wait_and_click(driver, 20, By.XPATH, "//input[@value='로그인']")
@@ -434,15 +437,15 @@ def process_material(driver, df, index, input_value, value):
     wait_and_click(driver, 20, By.XPATH, "//span[normalize-space(text())='Expand All']")
     wait_and_click(driver, 20, By.XPATH, "//span[contains(@class, 'x-btn-icon-el') and normalize-space(text())=' ']")
     input_text(driver, input_value, ['_Barcode', '_칭량', '_Quantity', '_사용량', '_Quantity2', '_사용기한', '_Purity', '_Lot No.', '_계산식 사용 칭량값']) # 반복해서 입력할 리스트
-
+    # Excel에서 Material 의 '고체' 컬럼이 'Y' 인 경우
     if df.at[index, 'G'] == 'Y':
         process_trashcan(driver, [3, 4])
-
+    # Excel에서 Material 의 '액체' 컬럼이 'Y' 인 경우
     if df.at[index, 'H'] == 'Y':
         process_trashcan(driver, [1, 2, 8])
 
 
-# 기존의 remove_steps 함수에서, Remove 버튼 클릭이 안되는 이슈로 인해 다른 패턴의 버튼 클릭을 시도하는 로직 추가
+# 기존의 remove_steps 함수에서, Remove 버튼 클릭이 안되는 이슈로 인해 다른 패턴의 버튼 클릭 (wait_and_click_visible) 을 시도하는 로직 추가
 def remove_steps(driver):
 
     while True:
@@ -481,7 +484,7 @@ def remove_steps(driver):
                             except Exception as e:
                                 print(f"[find_cause] 오류: {e}")
 
-                    # 확인 팝업 '예'
+                    # 확인 팝업에서 '예' 버튼 클릭
                     try:
                         wait_and_click(driver, 20, By.XPATH, "//span[normalize-space(text())='예']")
                     except TimeoutException:
@@ -495,7 +498,7 @@ def remove_steps(driver):
             print("No elements found containing 'name' within timeout period.")
             break
 
-    # 마지막 저장
+    # 마지막 저장 - save 버튼 클릭
     wait_and_click(driver, 20, By.XPATH, "//span[normalize-space(text())='Save']")
 
 
