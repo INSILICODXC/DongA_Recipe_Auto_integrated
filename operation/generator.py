@@ -15,7 +15,8 @@ import pyautogui
 
 # 엑셀 시트를 모두 순회하며 파징 값에 이상이 있는지를 체크하는 전용 함수를 정의함 (ssgwak)
 # precheck 할 때, 각 시트에서 extract_from_excel을 호출하여 필수값 누락 여부를 검사함.
-
+# 현재 required_map에 정의된 필수값이 모두 채워져 있는지 검사
+# required_map에 정의된 값중 하나라도 없으면 시트이름과 누락값을 메시지로 출력함.
 def precheck_all_sheets(excel_path: str):
     """
     전체 시트를 돌며 extract_from_excel을 실행,
@@ -257,7 +258,6 @@ def extract_from_excel(excel_path: str, sheet=0) -> dict:
     # choice, choice_details, recipe_name, method_category, recipe_location, sample, sample_liquid 는 choice가 무엇이든 간에 필수
     required_map = {
         "choice": choice,
-        # 기기분석, 이화학 확장에 사용 예정이며, 현재는 필수 아님
         "choice_detail": choice_detail,
         "Recipe Name": recipe_name,
         "Method Category": method_category,
@@ -307,128 +307,6 @@ def extract_from_excel(excel_path: str, sheet=0) -> dict:
 
 
 
-# # 엑셀에서 Key-Value 영역, Sample 테이블 영역, Equipment 테이블 영역에서 값 추출 -> dict 형태로 return (다른 곳에서 Key 값을 가지고 사용 가능)
-# def extract_from_excel(excel_path: str, sheet=0) -> dict:
-#     # 전체 시트 로드
-#     df = pd.read_excel(excel_path, sheet_name=sheet, header=None, keep_default_na=False)
-
-#     # -----------------------------
-#     # 1) KV 영역 (Sample Name 직전까지)
-#     # -----------------------------
-#     # 'Sample Name' 이 나오는 첫 행 찾기
-#     # 행 단위로 함수 적용
-#     # 행의 모든 값을 문자열로 변환 후 공백 제거, "Sample Name"과 비교, 하나라도 True가 있으면 True 반환
-#     marker_row = df[df.apply(lambda r: r.astype(str).str.strip().eq("Sample Name").any(), axis=1)].index[0]
-#     key_value_area = df.iloc[:marker_row]
-
-#     # 비교용 정규화본 (applymap deprecated → map 사용)
-#     # 비교 안정성을 위해 모든 값을 문자열 + 공백 제거 (Key-value 비교 전용 DataFrame)
-#     # 이 데이터 영역 (norm)은 Key-Value로 되어 있는 데이터 영역만 해당됨.
-#     norm = key_value_area.astype(str).map(lambda x: x.strip())
-
-#     # key-value 영역에서 값 추출 (Key의 오른쪽을 value로 추출)
-#     def value_right_of(key: str) -> str:
-#         """KV 테이블에서 key 오른쪽(1칸) 값"""
-#         pos = norm[norm.eq(key.strip())].stack().index[0]   # (row, col) 위치
-#         return str(key_value_area.iat[pos[0], pos[1] + 1]).strip()
-    
-#     # key-value 항목 중 시험항목에는 detail이라는 컬럼이 하나 더 있음, detail에서 값을 뽑기 위함
-#     def value_offset_of(key: str, offset: int):
-#         """KV 테이블에서 key 기준 오른쪽 offset칸 값 (Details 등)"""
-#         r, c = norm[norm.eq(key.strip())].stack().index[0]
-#         target_c = c + offset
-#         if target_c >= key_value_area.shape[1]:
-#             return None
-#         val = str(key_value_area.iat[r, target_c]).strip()
-#         return val if val and val.lower() != "nan" else None
-
-#     # key-value에서 뽑은 각 컬럼을 key로 하여, value로 뽑고 이를 딕셔너리로 변환
-#     # key-value에서 '시험항목', 'Recipe Name', 'Method Category', 'Recipe Location' 의 value 추출
-#     choice           = value_right_of("시험항목")
-#     # 추후 이화학, 기기분석 확장에 details 값을 사용
-#     choice_details   = value_offset_of("시험항목", 2
-#                                        )  
-#     recipe_name      = value_right_of("Recipe Name")
-#     method_category  = value_right_of("Method Category")
-#     recipe_location  = value_right_of("Recipe Location")
-
-#     # -----------------------------
-#     # 2) 테이블 영역 (시트 전체 정규화본)
-#     # -----------------------------
-#     norm_all = df.astype(str).map(lambda x: x.strip())
-
-#     # (공통) A열에서 경계 행
-#     colA = norm_all.iloc[:, 0]
-#     samplename_row = colA[colA.eq("Sample Name")].index.min()
-#     equipment_row = colA[colA.eq("Equipment")].index.min()
-#     material_row = colA[colA.eq("MATERIAL")].index.min()
-
-#     # 2-1) Sample (Sample Name 바로 아래 1칸)
-#     # "Sample Name" 라벨이 들어있는 컬럼 번호(int)
-#     sample_col = norm_all.columns[(norm_all == "Sample Name").any()].tolist()[0]
-#     # "Sample Name"이라는 텍스트가 적혀 있는 행 번호
-#     sample_row = norm_all.index[norm_all[sample_col] == "Sample Name"].tolist()[0]
-#     # 'Sample Name' 이 있는 행을 찾고, 거기에 +1을해줘야 그 밑에서 값을 가져올수 있음 
-#     sample_row_idx = sample_row + 1
-
-#     # '액체' 컬럼 찾기: 우선 헤더 행에서, 없으면 전체에서
-#     # 'Sample Name' 라벨이 있는 sample_row 행 번호 기반으로 '액체' 컬럼 찾기
-#     liquid_cols = norm_all.columns[norm_all.loc[sample_row].eq("액체")].tolist()
-#     if not liquid_cols:
-#         liquid_cols = norm_all.columns[(norm_all == "액체").any()].tolist()
-#         if not liquid_cols:
-#             raise ValueError("액체 컬럼을 찾을 수 없습니다.")
-#     # 엑셀 전체에서 '액체' 컬럼 찾기
-#     liquid_col = liquid_cols[0]
-
-#     # Sample Name, 액체 컬럼 값 추출
-#     # 같은 라인에 위치하지만, 실제로 Sample Name이 있는 위치와 액체가 있는 위치는 다름
-#     # df.iat[row,col] 방식으로 해서 sample name 값이 있는 위치를 지정
-#     # "Sample Name" 아래 줄, Sample Name 컬럼, strip() 으로 양쪽 공백 제거
-#     sample        = str(df.iat[sample_row_idx, sample_col]).strip()
-#     # df.iat[row,col] 방식으로 해서 sample name 값이 있는 위치->'액체' 컬럼이 있는 위치의 값을 지정
-#     # Sample 행에서 sample_row_idx (sample 값이 있는 줄의 위치) liquid_col ('액체' 컬럼이 있는 컬럼 번호) 기반으로, "액체" 컬럼에 해당하는 값을 추출
-#     sample_liquid = str(df.iat[sample_row_idx, liquid_col]).strip()
-
-#  # 2-2) Equipment (Equipment ~ Material 직전, 분석장비=='Y')
-#  # Equipment 섹션은 Equipment 에서 'Material' 이라고 써 있는 바로 전까지의 구간
-#     if pd.isna(equipment_row) or pd.isna(material_row) or equipment_row >= material_row:
-#         raise ValueError("Equipment ~ Material 구간을 찾을 수 없습니다.")
-#     equip_col = norm_all.columns[norm_all.loc[equipment_row].eq("Equipment")].tolist()[0]
-#     flag_col  = norm_all.columns[norm_all.loc[equipment_row].eq("분석장비")].tolist()[0]
-
-#     block = norm_all.iloc[equipment_row + 1:material_row, :]
-#     # '분석장비' 열이 Y인 행만 필터
-#     mask_y = block.iloc[:, flag_col].str.upper().eq("Y")
-#     # Equipment 컬럼 위치에서, B열(index=1)의 값을 가져오도록
-#     equipment_list = block.loc[mask_y, 1].tolist()
-#     equipment_primary = equipment_list[0] if equipment_list else None
-
-#     return {
-#         # Key-value 영역에서 추출하는 Data -> 나중에 딕셔너리로 return
-#         "시험항목": choice,
-#         "시험항목_Details": choice_details,   # 값이 없으면 None
-#         "Recipe Name": recipe_name,
-#         "Method Category": method_category,
-#         "Recipe Location": recipe_location,
-
-#         # Sample table 영역에서 추출하는 Data
-#         "Sample": sample,
-#         "Sample_liquid": sample_liquid,
-#         # Equipment table 영역에서 추출하는 Data
-#         "Equipment_list": equipment_list,
-#         "Equipment_primary": equipment_primary,
-
-#         # 필요 시 디버깅용
-#         "_marker_rows": {
-#             "SampleName": int(samplename_row), 
-#             "Equipment": int(equipment_row), 
-#             "Material": int(material_row)
-#         },
-#         "df": df,
-#     }
-
-
 # ID,PW 입력
 def get_id(id_prompt="ID:", pw_prompt="비밀번호:"):
 
@@ -462,16 +340,6 @@ def login(driver, username, password):
         wait_and_send_keys(driver, 20, By.XPATH, "//input[@placeholder='Password']", password)
         wait_and_click(driver, 20, By.XPATH, "//input[@value='SIGN IN']")
 
-
-    ##인실리코 내부 개발환경 입력필드
-    # wait_and_send_keys(driver, 20, By.XPATH, "//input[@placeholder='Username']", username)
-    # wait_and_send_keys(driver, 20, By.XPATH, "//input[@placeholder='Password']", password)
-    # wait_and_click(driver, 20, By.XPATH, "//input[@value='SIGN IN']")
-
-    ##동아 개발환경 입력필드
-    # wait_and_send_keys(driver, 20, By.XPATH, "//input[@placeholder='이메일 또는 사용자 이름']", username)
-    # wait_and_send_keys(driver, 20, By.XPATH, "//input[@placeholder='암호']", password)
-    # wait_and_click(driver, 20, By.XPATH, "//input[@value='로그인']")
 
 # recipe_name을 찾고 복사 한 후 product_name 으로 변경
 # recipe_name은 원본 레시피 이름, product_name은 복사 후 새 레시피 이름
@@ -573,54 +441,6 @@ def process_material(driver, df, index, input_value, value):
     if df.at[index, 'H'] == 'Y':
         process_trashcan(driver, [1, 2, 8])
 
-# Name에 name이 있는 파라미터 삭제
-
-# def remove_steps(driver):
-
-#     while True:
-#         try:
-#             name_elements = WebDriverWait(driver, 10).until(
-#                 EC.presence_of_all_elements_located((By.XPATH, "//span[contains(text(), 'name')]"))
-#             )
-#             if len(name_elements) == 0:
-#                 break
-
-#             for index, element in enumerate(name_elements):
-#                 try:
-#                     print(f"Clicking element {index + 1} with id: {element.get_attribute('id')}")
-#                     element.click()
-#                     time.sleep(2)
-
-#                     try:
-#                         # 1차: 기본 클릭
-#                         wait_and_click(driver, 20, By.XPATH, "//span[contains(@id, 'button-') and contains(text(), 'Remove')]")
-#                     except TimeoutException:
-#                         print("[Remove] 기본 클릭 실패 → instrument 버전 폴백")
-#                         # 2차: 폴백 클릭
-#                         try:
-#                             wait_and_click_last(driver, 20, By.XPATH, "//span[contains(@id, 'button-') and contains(text(), 'Remove')]")
-#                         #2차 클릭도 실패 시 원인 파악을 위한 함수 
-#                         except TimeoutException:
-#                             print("[Remove] instrument 폴백도 실패: 타임아웃")
-#                             find_cause(driver)
-#                     # 확인 팝업 '예'
-#                     try:
-#                         wait_and_click(driver, 20, By.XPATH, "//span[normalize-space(text())='예']")
-#                     except TimeoutException:
-#                         print("확인 팝업 '예' 버튼을 찾지 못했습니다.")
-
-#                 except StaleElementReferenceException:
-#                     print("Element is stale, retrying...")
-#                     continue
-
-#         except TimeoutException:
-#             print("No elements found containing 'name' within timeout period.")
-#             break
-
-#     # 마지막 저장
-#     wait_and_click(driver, 20, By.XPATH, "//span[normalize-space(text())='Save']")
-
-
 
 # 기존의 remove_steps 함수에서, Remove 버튼 클릭이 안되는 이슈로 인해 다른 패턴의 버튼 클릭을 시도하는 로직 추가
 def remove_steps(driver):
@@ -645,20 +465,6 @@ def remove_steps(driver):
                     except TimeoutException:
                         print("[Remove] 기본 클릭 실패")
                         try:
-                            # 기기분석 Recipe 동작 시 클릭 실패하는 케이스에서 사용했지만, 이 패턴으로토 클릭되지 않는 케이스 발견되어 현재는 사용하지 않음.
-                            # 2차: last()
-                            #wait_and_click_last(driver, 20, By.XPATH, "//span[contains(@id, 'button-') and contains(text(), 'Remove')]")
-                            
-                            
-                            # wait_and_click_last(driver, 20, By.XPATH,
-                            #     "//a[contains(@class,'x-btn') "
-                            #     "and not(contains(@class,'x-btn-disabled')) "
-                            #     "and not(contains(@class,'x-hidden')) "
-                            #     "and not(contains(@class,'x-hide-offsets')) "
-                            #     "and .//span[@data-ref='btnInnerEl' and (normalize-space(.)='Remove')]]"
-                            # )
-
-
                            # 2차 : 기존과 다르게, web에서 보이고 클릭할 수 있는 것만 대상으로 필터링 해서 클릭하는 패턴, 현재는 기기분석에서 해당사항이 발견되어 사용중)
                             wait_and_click_visible(
                                 driver, 10, By.XPATH,
