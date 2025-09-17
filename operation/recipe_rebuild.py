@@ -15,7 +15,7 @@ from operation.generator import login, recipe_copy, remove_steps, extract_from_e
 from utility.utils import wait_and_click, zoom_out, param_click, input_text, wait_and_send_keys
 
 
-# --- 공용: 로딩 마스크 대기 ---
+# --- 공용: 로딩 마스크 대기용 함수 정의 ---
 def wait_for_mask_to_disappear(driver, timeout=30):
     try:
         WebDriverWait(driver, timeout).until(
@@ -40,7 +40,7 @@ def process_excel_data(file_path, sheet_name=None):
         df = pd.read_excel(xls, sheet_name=s, header=None)
         df.columns = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K']
 
-        # 번호 정의
+        # recipe의 2.1 / 3.1 / 4.1 / 5.1 / 6.1 / 7.1 스텝 정의
         values_2_1 = [f'2.1.{i}' for i in range(1, 11)]
         values_3_1 = [f'3.1.{i}' for i in range(1, 11)]
         values_4_1 = [f'4.1.{i}' for i in range(1, 11)]
@@ -48,13 +48,12 @@ def process_excel_data(file_path, sheet_name=None):
         values_6_1 = [f'6.1.{i}' for i in range(1, 11)]
         values_7_1 = [f'7.1.{i}' for i in range(1, 11)]
 
-        # 최신 extract_from_excel 사용 (sheet_name 인자 통일)
-        #extracted = extract_from_excel(file_path, sheet_name=s)
+        # extract_from_excel 함수 이용하여 엑셀에서 Recipe Name, Sample, Sample_liquid 추출
         extracted = extract_from_excel(file_path, s)
         Recipe = extracted.get('Recipe Name')
         Sample = extracted.get('Sample')
         Sample_liquid = extracted.get('Sample_liquid')
-
+        #
         yield {
             'sheet_name': s,
             'df': df,
@@ -64,6 +63,7 @@ def process_excel_data(file_path, sheet_name=None):
             'values_5_1': values_5_1,
             'values_6_1': values_6_1,
             'values_7_1': values_7_1,
+            # extract_from_excel 에서 파징 (Recipe, Sample, Sample_liquid, choice, choice_detail)
             'Recipe': Recipe,
             'Sample': Sample,
             'Sample_liquid': Sample_liquid,
@@ -72,6 +72,12 @@ def process_excel_data(file_path, sheet_name=None):
             'excel_data': extracted
         }
 
+# observation
+# Material 기반으로 전처리/분석 단계를 채우는 동작을 수행
+# 엑셀 시트에서 "Material 1" 이라는 문자열이 들어 있는 행의 Index 탐색
+# > Material의 E 열이 'Y' 이면 2.1.X 단계에 자동 입력 /  Material의 F 열이 'Y' 이면 3.1.X 단계에 자동 입력
+#  >> Material 행에서 G열이 'Y' (고체) 일 경우 삭제 대상 파라미터 인덱스 목록 (3,4) 삭제함
+#  >> Material 행에서 H열이 'Y' (액체) 일 경우 삭제 대상 파라미터 인덱스 목록  (1,2,8) 을 삭제함
 
 def observation(driver, df):
     start_index = find_start_index(df)
@@ -122,6 +128,16 @@ def observation(driver, df):
     print("Saved Values:", saved_values)
 
 
+# update_sample
+# 1) Recipe의 'Samples' 탭으로 이동 > 'Sample Name' 인 xpath를 확인 > sample Name을 변경
+# 2) Process 탭 클릭 > 오른쪽의 Parameter 탭 클릭 > 'Expand All' 버튼 > 'Properties View' 버튼 클릭
+# 3) sample name + ['_제조번호', '_제조일자', '_채취일자', '_시험 시작일자'] 로 Parameter 이름을 변경
+# 4) 1번스텝 클릭 > sample_name + [_전처리 확인여부] 로 parameter 이름 변경
+# 5) 1.1 스텝 클릭 > sample_name + [_샘플이름', ' SA_칭량'] 으로 parameter 이름 변경
+# 6) Sample 정보가 액체인경우 > 필요 없는 process 삭제
+# 7) 4번스텝 클릭 > sample_name + [_샘플이름, _결과,  시험 종료일자] 로 parameter 이름 변경
+
+
 def update_sample(driver, Sample, Sample_liquid):
     # Sample 기입
     wait_and_click(driver, 20, By.XPATH, "//a[text()='Samples']")
@@ -158,6 +174,13 @@ def update_sample(driver, Sample, Sample_liquid):
     input_text(driver, Sample, ['_샘플이름', ' _결과', ' 시험 종료일자'])
 
 
+
+# update_sample density
+# 1) Recipe의 'Samples' 탭으로 이동 > 'Sample Name' 인 xpath를 확인 > sample Name을 변경
+# 2) Process 탭 클릭 > 오른쪽의 Parameter 탭 클릭 > 'Expand All' 버튼 > 'Properties View' 버튼 클릭
+# 3) sample name + ['_제조번호', '_제조일자', '_채취일자', '_비중 시험 시작시간', '_비중_MIN', '_비중_MAX'] 로 Parameter 이름을 변경
+# 4) 2번스텝 클릭 > sample_name + ['_비중 시험법 선택', ' _비중'] 으로 parameter 이름 변경
+
 def update_sample_density(driver, Sample, Sample_liquid):
     # Sample 기입
     wait_and_click(driver, 20, By.XPATH, "//a[text()='Samples']")
@@ -183,6 +206,15 @@ def update_sample_density(driver, Sample, Sample_liquid):
     input_text(driver, Sample, ['_비중 시험법 선택', ' _비중'])
 
 
+
+# add_paramdesc(driver, df, 4)
+# 1) 엑셀의 A열에서 'Param Dsc.1" 이 등장하는 행을 시작점으로 잡음, Param Dsc로 잡힌 데이터 만큼 실행
+#  >> 못 찾으면 패스
+# 2) 시작점이 잡히면 A열에 ‘Param Dsc’가 포함된 모든 행 을 순회하여 B열 값을 항목명으로 UI에 Param Dsc를 추가
+# 3) Add > Filter에서 B열 값을 입력
+# 4) Add Selected 클릭
+# 5) 추가한 Parameter에서 'Process Result' 클릭
+# 6) 'Apply' 클릭
 
 def add_paramdsc(driver, df, value):
     # Param Dsc. 관련 파라미터 입력 처리
@@ -227,6 +259,12 @@ def add_paramdsc(driver, df, value):
                 wait_and_click(driver, 20, By.XPATH, "//span[@class='x-btn-inner x-btn-inner-default-small' and text()='Apply']")
 
 
+# physicochemistry
+# Material 기반으로 전처리/분석 단계를 채우는 동작을 수행
+# 엑셀 시트에서 "Material 1" 이라는 문자열이 들어 있는 행의 Index 탐색
+#  > E 열이 'Y' 이면 2.1.X 단계에 자동 입력 /  F 열이 'Y' 이면 3.1.X 단계에 자동 입력
+#   >> Material 행에서 G열이 'Y' (고체) 일 경우 삭제 대상 파라미터 인덱스 목록 (3,4) 삭제함
+#   >> Material 행에서 H열이 'Y' (액체) 일 경우 삭제 대상 파라미터 인덱스 목록  (1,2,8) 을 삭제함
 
 def physicochemistry(driver, df):
     # 전처리 및 분석 단계 파라미터 자동 기입
@@ -274,7 +312,17 @@ def physicochemistry(driver, df):
     print("Saved Values:", saved_values)
 
 
-# --- Compose 입력 로직들 ---
+# instrument
+# 1) Recipe 편집 초기 화면에서 첫 번째 필드 에 Recipe Name 입력
+# 2) sleep 후 Zoom out (3)  실행
+# 3) 엑셀의 각 행을 순회하여 A열의 Material이고 D열 값 (표준품 여부)'Y' 인 경우를 standard_values에 추가
+#  >> 시험에 사용하는 표준물질 이름 리스트
+
+# 4) 나중에 삭제할 파라미터 수 계산
+# 5) 7.2 라벨 영역을 클릭 > param_click 실행 > parameters 이동 > expand all > standard values 개수만큼 textarea에 '[물질명]_SST 판정' 으로 parameter 이름이력
+# 6) 7.3.1 라벨 클릭 > param_click 실행 > parameters 이동 > expand all > standard values 개수만큼 textarea에 '[물질명]_ST_Area' / '[물질명]_ST_R.T.' 입력 
+
+
 def instrument(driver, df, Recipe):
     # Process Tree Name 기입
     tabpanel_divs = driver.find_elements(By.XPATH, "//div[starts-with(@id, 'tabpanel-') and contains(@id, '-body')]")
@@ -382,6 +430,13 @@ def instrument(driver, df, Recipe):
         print("There are less than 9 elements matching the criteria.")
 
 
+# sample_instrument
+# 1) Recipe에서 Samples 탭 > xpath 텍스트가 'Sample' 인 것을 찾아 지우고 Excel의 Sample Name을 입력 > Process 탭 클릭
+# 2) Process 클릭하자마자 보이는 0번스텝의 Parameter 이름을 'Sample_Name'+['_제조번호', '_제조일자', '_채취일자', '_시험 시작일자'] 로 변경한다.
+# 3) 1.1 스텝으로 이동해서 Parameters 탭 > Expand All > Parameter 이름을 'Sample_Name'+['_샘플이름', ' SA_칭량'] 으로 수정한다.
+#  >> 이후 Sample이 액상인지를 보고, 액상이면 현재 스텝에서 2번째 인덱스인 파라미터를 삭제한다.
+# 4) 7.4 스텝으로 이동해서 Parameters 탭 > Expand All > 'Sample_Name' + [' _확인시험', ' 시험 종료일자'] 로 수정한다.
+
 def sample_instrument(driver, Sample, Sample_liquid):
     # Sample 기입
     wait_and_click(driver, 20, By.XPATH, "//a[text()='Samples']")
@@ -443,6 +498,14 @@ def sample_instrument(driver, Sample, Sample_liquid):
             textarea_field.send_keys(Sample + [' _확인시험', ' 시험 종료일자'][i])
             time.sleep(2)
 
+
+# add_paramdsc_instrument
+# ** 함수 실행은 sample_instrument 동작이 끝난 직후 바로 실행되므로, 7.4 스텝에서 동작됨.
+
+# 1) Excel 파일에서 Param Dsc 시작 위치 찾기
+# 2) 해당 범위 A열에서 Param Dsc 문자열을 찾아, B열 값을 input_value로 저장
+# 3) Compose 화면에서 add 버튼 클릭 > Excel의 B열 값대로 필터링 > Parameter 추가
+# 4) 추가한 Parameter에 대해 Process Result 태그 설정 > Apply 버튼 클릭
 
 def add_paramdsc_instrument(driver, df, ID, PW, Recipe):
     # Param DSC 시작 인덱스 찾기
@@ -506,7 +569,21 @@ def add_paramdsc_instrument(driver, df, ID, PW, Recipe):
                 wait_for_mask_to_disappear(driver)
                 time.sleep(2)
 
-#기존의 장비 매핑 동작에 generator.py에서 정의한 'equipment_primary' 를 분석장비 목록으로 받아 이용할 수 있게 수정 (+ equipment_primary=None)
+
+# process_materials_instrument_hplc
+# 기기분석_HPLC 레시피에서 동작하는 함수 (기기매핑 포함)
+
+# 1) Excel 행을 Material 별로 읽어서 최대 10개까지 각 섹션 단계 (2.1.x ~ 7.1.x) 에 매핑 준비
+# 2) A열에서 'Material 1' 을 포함하는 첫 행을 찾아 시작점 지정, 각 material마다 B열 값을 input value로 가져옴
+# 3) Material 영역의 Flag에 따라 섹션이 결정됨
+#  > Detail 탭 열기
+#  > Text 필드 지우고 Material 값 이름을 스텝 이름으로 입력
+#  > Parameters 탭 > Expand ALL 버튼 클릭
+#  > Parameter 이름 수정 > input value + 각 name 으로 parameter 이름 수정
+#  > 분석기기 선택 + Parameter Reading 입력 + 입력 후 browser 재시작
+#     >> 2.1.x/3.1.x/4.1.x/5.1.x/6.1.x/7.1.x 모든 섹션에서 기기분석_HPLC 는 이부분을 유지
+#  > Sample 탭에서 해당 Material의 이름으로 변경
+# 기존의 장비 매핑 동작에 generator.py에서 parsing 한 'equipment_primary' 를 분석장비 목록으로 받아와 실행됨.
 def process_materials_instrument_hplc(driver, df, ID, PW, Recipe, Sample, equipment_primary=None):
 
     # 파라미터 값 생성
@@ -793,7 +870,21 @@ def process_materials_instrument_hplc(driver, df, ID, PW, Recipe, Sample, equipm
         print("'Material 1'을 찾을 수 없습니다.")
     return driver
 
-#기존의 장비 매핑 동작에 generator.py에서 정의한 'equipment_primary' 를 분석장비 목록으로 받아 이용할 수 있게 수정 (+ equipment_primary=None)
+
+
+# process_materials_instrument_gc
+# 기기분석_GC 레시피에서 동작하는 함수 (기기매핑 동작 없음)
+
+# 1) Excel 행을 Material 별로 읽어서 최대 10개까지 각 섹션 단계 (2.1.x ~ 7.1.x) 에 매핑 준비
+# 2) A열에서 'Material 1' 을 포함하는 첫 행을 찾아 시작점 지정, 각 material마다 B열 값을 input value로 가져옴
+# 3) Material 영역의 Flag에 따라 섹션이 결정됨
+#  > Detail 탭 열기
+#  > Text 필드 지우고 Material 값 이름을 스텝 이름으로 입력
+#  > Parameters 탭 > Expand ALL 버튼 클릭
+#  > Parameter 이름 수정 > input value + 각 name 으로 parameter 이름 수정
+#     >> (2.1.x ~ 7.1.x) 까지 이후 동작 진행
+#  > Sample 탭에서 해당 Material의 이름으로 변경
+
 def process_materials_instrument_gc(driver, df, ID, PW, Recipe, Sample, equipment_primary=None):
 
     # 파라미터 값 생성
@@ -872,37 +963,7 @@ def process_materials_instrument_gc(driver, df, ID, PW, Recipe, Sample, equipmen
                             update_material(driver, standard, input_value)
                             standard += 1
                             value_index_2_1 += 1
-                            value_index_7_1 += 1
-                                # # --- 분석장비 매핑 (equipment_primary만 사용할 수 있게 수정) ---
-                                # wait_and_click(driver, 20, By.XPATH,
-                                #     "//span[contains(@class, 'x-btn-icon-el') and contains(@style, 'parameters_datacollection_light.png')]")
-
-                                # if not equipment_primary:
-                                #     print("[경고] equipment_primary 값이 없어 장비 매핑을 건너뜁니다.")
-                                # else:
-                                #     print("분석장비(primary):", equipment_primary)
-
-                                #     # 매핑 횟수는 기존과 동일하게 30회 유지
-                                #     for i in range(30):
-                                #         try:
-                                #             element = WebDriverWait(driver, 10).until(
-                                #                 EC.element_to_be_clickable(
-                                #                     (By.XPATH, f"(//input[@placeholder='Select Recipe Equipment'])[{i+1}]")
-                                #                 )
-                                #             )
-                                #             driver.execute_script("arguments[0].click();", element)
-                                #             time.sleep(1)
-                                #             element.send_keys(equipment_primary)  # 항상 동일한 값 입력
-                                #             element.send_keys(Keys.RETURN)
-                                #             time.sleep(2)
-                                #         except (TimeoutException, StaleElementReferenceException) as e:
-                                #             print(f"Error interacting with element {i+1}: {e}")
-                                #             continue
-
-                                #     print("Completed 30 iterations")
-
-
-                                
+                            value_index_7_1 += 1              
                                                
                     except Exception as e:
                         print(f"Error occurred for value {values_2_1[value_index_2_1]}: {e}")
@@ -988,7 +1049,12 @@ def process_materials_instrument_gc(driver, df, ID, PW, Recipe, Sample, equipmen
         print("'Material 1'을 찾을 수 없습니다.")
     return driver
 
-
+# run_recipe_rebuild
+# process_excel_data() 에서 시트별 파징 결과를 yield 로 받음
+# 각 시트별로 WebDriver 생성 → login → 조건에 따른 함수 실행 → remove_steps → 드라이버 종료
+# 시트별로 조건에 맞게 Recipe 생성, 종료 후 다음 시트로 이동하여 동일하게 동작
+# choice는 Excel의 '시험항목', choice_detail은 '시험분류' 값
+# choice와 choice_detail 값에 따라 함수 실행 분기
 
 def run_recipe_rebuild(sheet_name, file_path, ID, PW):
     """
@@ -1065,10 +1131,11 @@ def run_recipe_rebuild(sheet_name, file_path, ID, PW):
                 print(f"[recipe_copy] '{sheet_name}' 시트: 조건 불일치 → 실행하지 않음 "
                     f"(choice={choice}, choice_detail={choice_detail})")
 
-            # 공통: 마지막 단계
+            # 공통: 마지막 단계에서 이름에 'name' 이 포함된 스텝 제거
+            # 스텝 이름에 'name' 이 포함되었다는 말은 아무것도 설정되지 않은 스텝을 의미함.
             remove_steps(driver)
 
         finally:
             driver.quit()
 
-        break  # 단일 시트 실행이므로 한 번 처리 후 종료
+        break  # 지정 시트명만 처리하고 종료
