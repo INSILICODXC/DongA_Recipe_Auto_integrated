@@ -730,8 +730,9 @@ def process_materials_instrument_hplc(driver, df, ID, PW, Recipe, Sample, equipm
                             driver = webdriver.Chrome(service=service, options=options)    
                             driver.maximize_window()
 
-                            #Compose 접속하기
-                            driver.get("https://hubdev.daphgmp.dongasocio.com:9953/foundation/hub/")
+                            #Foundation Hub 접속하기
+                            #driver.get("https://hubdev.daphgmp.dongasocio.com:9953/foundation/hub/")
+                            driver.get(config.URL_HUB)
 
                             #로그인 하기
 
@@ -754,7 +755,8 @@ def process_materials_instrument_hplc(driver, df, ID, PW, Recipe, Sample, equipm
                             time.sleep(2)
 
                             #compose로 이동
-                            driver.get("https://cncdev.daphgmp.dongasocio.com:9963/compose/")
+                            #driver.get("https://cncdev.daphgmp.dongasocio.com:9963/compose/")
+                            driver.get(config.URL_COMPOSE)
                             time.sleep(5)
 
                             #Std Recipe 찾기
