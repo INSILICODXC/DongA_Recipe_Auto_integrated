@@ -98,7 +98,7 @@ else:
 # 계정 및 엑셀 경로 (ID/PW는 여기에 고정)
 ID = "scitegicadmin"
 PW = "Qwer1234!"
-excel_path = r"D:\DongA_Recipe_Auto_integrated_backup\Excel_Read_TEST_20250917.xlsx"
+excel_path = r"D:\DongA_Recipe_Auto_integrated\Excel_Read_TEST_20250917.xlsx"
 
 def run_selected_module():
     xls = pd.ExcelFile(excel_path)
